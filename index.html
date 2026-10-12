@@ -299,7 +299,7 @@ const GRADEN={유년부:'유년부',초등부:'초등부',청소년부:'청소�
 const GRADERANGE={유년부:'초1~3학년',초등부:'초4~6학년',청소년부:'중1~고3'};
 const GCLR={유년부:'S1',초등부:'S2',청소년부:'S3'};
 const IV=[0,1,2,4,8,16,32];
-let DB=[],BY={},AREAS={},EXAMSETS=[];
+let DB=[],BY={},AREAS={};
 
 const myPool=()=>BY[S.myGrade]||[];
 
@@ -320,18 +320,6 @@ async function boot(){
     (BY[q.s]=BY[q.s]||[]).push(q);
     const k=q.s+'|'+(q.a||'기타'); (AREAS[k]=AREAS[k]||[]).push(q);
   });
-  /* 실전연습 세트: 2027년은 아직 실제 기출이 없으므로, 각 부서 예상문제를 원문 순서(과 진행 순서)
-     그대로 50문제씩 끊어 실제 대회 형식(1~40번 1.7점, 41~50번 3.2점)으로 구성함 */
-  EXAMSETS=[];
-  GRADES.forEach(g=>{
-    const qs=[...(BY[g]||[])].sort((a,b)=>a.qnum-b.qnum);
-    for(let i=0;i<qs.length;i+=50){
-      const chunk=qs.slice(i,i+50), n=chunk.length;
-      chunk.forEach((q,idx)=>{ q.pts = idx < Math.max(0,n-10) ? 1.7 : 3.2; });
-      EXAMSETS.push({name:`${g} ${i+1}~${i+n}번`, qs:chunk, s:g, year:2027});
-    }
-  });
-  EXAMSETS.sort((a,b)=> (a.s===S.myGrade?-1:b.s===S.myGrade?1:0));
   rollStreak(); document.getElementById('load').remove();
   document.getElementById('streak').hidden=false;
   render();
@@ -643,42 +631,50 @@ function vStats(){
     S=Object.assign({},D0,{goal:S.goal,myGrade:S.myGrade}); save(); render(); } };
 }
 
-/* ── 모의고사 (실제 기출 그대로) ─────────── */
+/* ── 모의고사 (실제 기출 출제 양상 재현) ───────
+   실제 성경고사대회 기출문제를 분석해보면, 50문제가 교과 전체 단원(약 44개 과 + 절기 단원들)에서
+   거의 한 단원당 한 문제씩, 순서 없이 뒤섞여 출제됨(한두 단원만 2문제, 나머지는 정확히 1문제).
+   이를 그대로 재현: 부서별 예상문제 풀(단원당 4~8문항)에서 단원별로 1문제씩 무작위로 뽑고,
+   뽑힌 50문제를 다시 무작위로 섞어 실제 대회 배점(1~40번 1.7점, 41~50번 3.2점)을 매긴다.
+   매번 "시작"할 때마다 새로 뽑으므로, 실제 매 대회마다 다른 문제가 나오는 것과 같은 경험이 된다. */
 let ex=null,exT=null;
 const SEC_PER=50;
+function buildMockExam(g){
+  const pool=BY[g]||[];
+  const byUnit={};
+  pool.forEach(q=>{ (byUnit[q.a||'기타']=byUnit[q.a||'기타']||[]).push(q); });
+  const units=shuffle(Object.keys(byUnit)).slice(0,50);
+  let qs=units.map(u=>{ const arr=byUnit[u]; return arr[Math.random()*arr.length|0]; });
+  qs=shuffle(qs);
+  const n=qs.length;
+  qs.forEach((q,idx)=>{ q.pts = idx < Math.max(0,n-10) ? 1.7 : 3.2; });
+  return qs;
+}
 function vExam(){
   const el=document.getElementById('v-exam');
   if(ex&&ex.phase==='run') return examRun(el);
   if(ex&&ex.phase==='done') return examResult(el);
   if(!S.myGrade){
     el.innerHTML=`<div class="stack">${gradepickHTML()}
-      <div class="empty">부서를 먼저 골라주세요.<br>부서별 실전연습 세트를 보여드릴게요.</div></div>`;
+      <div class="empty">부서를 먼저 골라주세요.<br>부서별 실전 모의고사를 보여드릴게요.</div></div>`;
     wireGradepick(el,vExam);
     return;
   }
-  const mine=EXAMSETS.filter(x=>x.s===S.myGrade);
-  const others=EXAMSETS.filter(x=>x.s!==S.myGrade);
   const hist=S.exams.slice(-5).reverse();
-  const setRow=x=>{
-    const last=S.exams.filter(e=>e.set===x.name).slice(-1)[0];
-    return `<button class="btn sec exs" data-set="${esc(x.name)}" style="display:flex;align-items:center;gap:11px;padding:12px 14px;text-align:left">
-      <span class="chip sub ${GCLR[x.s]}" style="flex:0 0 auto">${GRADEN[x.s]}</span>
-      <span class="num" style="color:var(--ink2);font-size:13.5px">${x.name.replace(GRADEN[x.s],'').trim()||x.year} · ${x.qs.length}문항</span>
-      <span class="num" style="margin-left:auto;font-size:13px;color:${last?'var(--ink)':'var(--ink3)'}">${last?`최근 ${last.score}점`:'미응시'}</span>
-    </button>`;};
+  const startBtn=g=>`<button class="btn${g===S.myGrade?'':' sec'} exs" data-g="${g}" style="display:flex;align-items:center;gap:11px;justify-content:center">
+      <span class="chip sub ${GCLR[g]}" style="flex:0 0 auto">${GRADEN[g]}</span>
+      <span>실전 모의고사 시작 · 50문항</span>
+    </button>`;
   el.innerHTML=`<div class="stack">
     <div class="card pad">
-      <div class="eyebrow">2027년 예상문제 세트 · 실제 대회 배점</div>
-      <div class="big" style="margin-top:6px">${GRADEN[S.myGrade]} 실전연습</div>
-      <div class="sub" style="margin-top:5px">2027년 예상문제를 공과 순서 그대로 50문제씩 묶어 실제 대회 형식(1~40번 1.7점, 41~50번 3.2점)으로 풀어봅니다. 2027년 실제 기출 시험지는 아직 없어 예상문제로 구성했습니다.</div>
+      <div class="eyebrow">실제 기출 출제 양상 재현 · 매번 새로 출제</div>
+      <div class="big" style="margin-top:6px">${GRADEN[S.myGrade]} 실전 모의고사</div>
+      <div class="sub" style="margin-top:5px">실제 대회처럼 전체 단원(약 44과 + 절기 단원)에서 한 단원당 한 문제씩 무작위로 뽑아 순서를 섞은 50문제를 만들어요. 배점도 실제 그대로(1~40번 1.7점, 41~50번 3.2점)입니다. 시작할 때마다 새로운 조합으로 출제됩니다.</div>
     </div>
-    <div class="card pad">
-      <div class="eyebrow" style="margin-bottom:10px">${GRADEN[S.myGrade]} 연습 세트</div>
-      <div style="display:flex;flex-direction:column;gap:8px">${mine.length?mine.map(setRow).join(''):'<div class="sub">아직 이 부서 자료가 없습니다.</div>'}</div>
-    </div>
-    <div class="card pad">
-      <div class="eyebrow" style="margin-bottom:10px">다른 부서 세트도 풀어보기</div>
-      <div style="display:flex;flex-direction:column;gap:8px">${others.map(setRow).join('')}</div>
+    <div class="card pad stack">
+      ${startBtn(S.myGrade)}
+      <div class="eyebrow" style="margin-top:4px">다른 부서 모의고사도 풀어보기</div>
+      ${GRADES.filter(g=>g!==S.myGrade).map(startBtn).join('')}
     </div>
     <div class="card pad">
       <div class="eyebrow" style="margin-bottom:6px">실제 대회 시상 기준</div>
@@ -692,11 +688,11 @@ function vExam(){
       </div>`).join('')}</div>`:''}
   </div>`;
   wireGradepick(el,vExam);
-  el.querySelectorAll('.exs').forEach(b=>b.onclick=()=>startExam(b.dataset.set));
+  el.querySelectorAll('.exs').forEach(b=>b.onclick=()=>startExam(b.dataset.g));
 }
-function startExam(setName){
-  const set=EXAMSETS.find(x=>x.name===setName);
-  const qs=set.qs; // 원래 시험지 순서 그대로
+function startExam(g){
+  const qs=buildMockExam(g);
+  const setName=`${GRADEN[g]} 모의고사 · ${today()}`;
   ex={qs,i:0,ans:{},phase:'run',setName,end:Date.now()+qs.length*SEC_PER*1000};
   clearInterval(exT);
   exT=setInterval(()=>{ if(VIEW!=='exam'||!ex||ex.phase!=='run')return;
