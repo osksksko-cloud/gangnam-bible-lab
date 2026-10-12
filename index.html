@@ -661,22 +661,25 @@ function vExam(){
     return;
   }
   const hist=S.exams.slice(-5).reverse();
-  const startBtn=g=>`<button class="btn${g===S.myGrade?'':' sec'} exs" data-g="${g}" style="display:flex;align-items:center;gap:11px;justify-content:center">
+  const startBtn=(g,primary)=>`<button class="btn${primary?'':' sec'} exs" data-g="${g}" style="display:flex;align-items:center;gap:10px;padding:13px 16px;text-align:left;white-space:nowrap">
       <span class="chip sub ${GCLR[g]}" style="flex:0 0 auto">${GRADEN[g]}</span>
-      <span>실전 모의고사 시작 · 50문항</span>
+      <span style="overflow:hidden;text-overflow:ellipsis">실전 모의고사 시작 · 50문항</span>
     </button>`;
   el.innerHTML=`<div class="stack">
-    <div class="card pad">
+    <div class="card pad" style="grid-column:1/-1">
       <div class="eyebrow">실제 기출 출제 양상 재현 · 매번 새로 출제</div>
       <div class="big" style="margin-top:6px">${GRADEN[S.myGrade]} 실전 모의고사</div>
       <div class="sub" style="margin-top:5px">실제 대회처럼 전체 단원(약 44과 + 절기 단원)에서 한 단원당 한 문제씩 무작위로 뽑아 순서를 섞은 50문제를 만들어요. 배점도 실제 그대로(1~40번 1.7점, 41~50번 3.2점)입니다. 시작할 때마다 새로운 조합으로 출제됩니다.</div>
     </div>
-    <div class="card pad stack">
-      ${startBtn(S.myGrade)}
-      <div class="eyebrow" style="margin-top:4px">다른 부서 모의고사도 풀어보기</div>
-      ${GRADES.filter(g=>g!==S.myGrade).map(startBtn).join('')}
+    <div class="card pad" style="grid-column:1/-1;display:flex;flex-direction:column;gap:10px">
+      <div class="eyebrow">${GRADEN[S.myGrade]} 모의고사</div>
+      ${startBtn(S.myGrade,true)}
+      <div class="eyebrow" style="margin-top:6px">다른 부서 모의고사</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+        ${GRADES.filter(g=>g!==S.myGrade).map(g=>startBtn(g,false)).join('')}
+      </div>
     </div>
-    <div class="card pad">
+    <div class="card pad" style="grid-column:1/-1">
       <div class="eyebrow" style="margin-bottom:6px">실제 대회 시상 기준</div>
       <div class="sub">100점 만점 · <b class="num">80점</b> 이상 우수상 이상, <b class="num">60점</b> 이상 장려상 대상입니다.</div>
     </div>
