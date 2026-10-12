@@ -296,6 +296,7 @@ const today=()=>new Date().toLocaleDateString('sv');
 /* 부서 트랙: 2027년 전국성경고사대회 예상문제 - 유년부/초등부/청소년부 */
 const GRADES=['유년부','초등부','청소년부'];
 const GRADEN={유년부:'유년부',초등부:'초등부',청소년부:'청소년부'};
+const GRADERANGE={유년부:'초1~3학년',초등부:'초4~6학년',청소년부:'중1~고3'};
 const GCLR={유년부:'S1',초등부:'S2',청소년부:'S3'};
 const IV=[0,1,2,4,8,16,32];
 let DB=[],BY={},AREAS={},EXAMSETS=[];
@@ -414,7 +415,7 @@ function render(){ const n=document.getElementById('streakN'); if(n) n.textConte
 function gradepickHTML(){
   return `<div class="card pad">
     <div class="eyebrow" style="margin-bottom:10px">내 부서</div>
-    <div class="gradepick">${GRADES.map(g=>`<button class="g${g===S.myGrade?' on':''}" data-g="${g}">${GRADEN[g]}</button>`).join('')}</div>
+    <div class="gradepick">${GRADES.map(g=>`<button class="g${g===S.myGrade?' on':''}" data-g="${g}">${GRADEN[g]}<br><span style="font-size:11px;font-weight:500;opacity:.72">${GRADERANGE[g]}</span></button>`).join('')}</div>
   </div>`;
 }
 function wireGradepick(el,after){
@@ -433,7 +434,7 @@ function vToday(){
       <div class="card pad">
         <div class="eyebrow" style="margin-bottom:6px">시작하기</div>
         <div class="big">내 부서를 선택해 주세요</div>
-        <div class="sub" style="margin-top:4px">부서를 고르면 2027년 예상문제로 학습을 시작할 수 있어요. 나중에 언제든 바꿀 수 있습니다.</div>
+        <div class="sub" style="margin-top:4px">유년부(초1~3학년) · 초등부(초4~6학년) · 청소년부(중1~고3, 중·고등부 구분 없이 함께 출제)로 나뉘어 있어요. 부서를 고르면 2027년 예상문제로 학습을 시작할 수 있고, 나중에 언제든 바꿀 수 있습니다.</div>
       </div>
       ${gradepickHTML()}
     </div>`;
