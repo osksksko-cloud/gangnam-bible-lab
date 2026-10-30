@@ -166,6 +166,8 @@ section.view.on{display:block}
   display:grid;place-content:center;font-size:12.5px;font-weight:700;margin-top:1px}
 .opt.ok{border-color:var(--ok);background:var(--ok-soft)}
 .opt.ok b{background:var(--ok);color:#fff}
+.opt.selected{border-color:var(--acc);background:var(--acc-soft)}
+.opt.selected b{background:var(--acc);color:#fff}
 .opt.bad{border-color:var(--bad);background:var(--bad-soft)}
 .opt.bad b{background:var(--bad);color:#fff}
 .opt:disabled{cursor:default}
@@ -340,8 +342,7 @@ function markDay(cat){
   c[cat||'fresh']=(c[cat||'fresh']||0)+1; save();
 }
 const doneToday=()=>S.days[today()]||0;
-const isCorrect=(q,j)=>Array.isArray(q.k)?q.k.includes(j):j===q.k;
-const answerLabel=q=>Array.isArray(q.k)?q.k.join(',')+'번':q.k+'번';
+const isMultiAnswer=q=>Array.isArray(q.k)&&q.k.length>1; const isCorrect=(q,answer)=>{if(isMultiAnswer(q))return Array.isArray(answer)&&answer.length===q.k.length&&q.k.every(j=>answer.includes(j));return !Array.isArray(q.k)&&answer===q.k;}; const answerLabel=q=>Array.isArray(q.k)?q.k.join(',')+'번':q.k+'번'; const hasAnswer=(q,answer)=>isMultiAnswer(q)?Array.isArray(answer)&&answer.length>0:answer!==undefined&&answer!==null;
 
 /* ── 진행 기록 (내 학년 문제만 대상) ───────── */
 function record(q,ok){
@@ -501,7 +502,7 @@ function vToday(){
 /* ── 문항 풀이 공통 ─────────────────────── */
 function renderSession(el,ss,onEnd){
   if(ss.i>=ss.qs.length) return renderDone(el,ss,onEnd);
-  const q=ss.qs[ss.i], picked=ss.ans[ss.i];
+  const q=ss.qs[ss.i], picked=ss.ans[ss.i], multi=isMultiAnswer(q), selected=multi&&Array.isArray(picked)?picked:[];
   el.innerHTML=`
     <div class="prog"><i style="width:${ss.i/ss.qs.length*100}%"></i></div>
     <div class="row" style="margin-bottom:12px">
@@ -512,10 +513,11 @@ function renderSession(el,ss,onEnd){
       <div class="qmeta"><span class="chip sub ${GCLR[q.s]}">${GRADEN[q.s]||'예상문제'}</span>
         ${q.a?`<span class="chip">${esc(q.a)}</span>`:''}
         ${q.o.length!==4?`<span class="chip">보기 ${q.o.length}개</span>`:''}
-        ${Array.isArray(q.k)?'<span class="chip warn">복수정답 가능</span>':''}
+        ${multi?`<span class="chip warn">복수정답 · ${q.k.length}개 모두 선택</span>`:''}
         ${q.flag&&q.flag.startsWith('확인요망')?'<span class="chip warn">⚠ 검토중</span>':''}</div>
       <div class="stem"><p class="ask">${esc(q.q)}</p></div>
-      <div class="opts">${q.o.map((o,j)=>`<button class="opt" data-j="${j+1}"><b>${j+1}</b><span>${esc(o)}</span></button>`).join('')}</div>
+      <div class="opts">${q.o.map((o,j)=>`<button class="opt${selected.includes(j+1)?' selected':''}" data-j="${j+1}"><b>${j+1}</b><span>${esc(o)}</span></button>`).join('')}</div>
+      ${multi?`<div class="sub" style="margin-top:12px">정답 ${q.k.length}개를 모두 선택하세요. 선택한 보기를 다시 누르면 취소할 수 있습니다.</div><button class="btn" id="check-multi" style="margin-top:10px" ${selected.length===q.k.length?'':'disabled'}>정답 확인 (${selected.length}/${q.k.length})</button>`:''}
       <div id="fb"></div>
     </div>`;
   el.querySelector('#quit').onclick=onEnd;
@@ -523,9 +525,9 @@ function renderSession(el,ss,onEnd){
   const commit=j=>{
     const ok=isCorrect(q,j); ss.ans[ss.i]=j;
     if(ss.mode!=='exam'){ record(q,ok); markDay(q._cat||(ss.mode==='review'?'rev':'fresh')); }
-    const kArr=Array.isArray(q.k)?q.k:[q.k];
+    const kArr=Array.isArray(q.k)?q.k:[q.k], chosenArr=Array.isArray(j)?j:[j];
     opts.forEach(b=>{ b.disabled=true; const bj=+b.dataset.j;
-      if(kArr.includes(bj))b.classList.add('ok'); else if(bj===j)b.classList.add('bad'); else b.classList.add('dim'); });
+      if(kArr.includes(bj))b.classList.add('ok'); else if(chosenArr.includes(bj))b.classList.add('bad'); else b.classList.add('dim'); });
     el.querySelector('#fb').innerHTML=`
       <div class="expl"><div class="verdict ${ok?'ok':'bad'}">${ok?'✓ 정답':'✗ 오답 · 정답은 '+answerLabel(q)}</div>${esc(q.e||'').replace(/\n/g,'<br>')}</div>
       <div class="fb-pad"></div>
@@ -533,7 +535,7 @@ function renderSession(el,ss,onEnd){
     el.querySelector('#next').onclick=()=>{ss.i++;window.scrollTo(0,0);renderSession(el,ss,onEnd);};
     el.querySelector('#next').focus();
   };
-  opts.forEach(b=>b.onclick=()=>commit(+b.dataset.j));
+  if(multi){ opts.forEach(b=>b.onclick=()=>{const j=+b.dataset.j,now=Array.isArray(ss.ans[ss.i])?[...ss.ans[ss.i]]:[],at=now.indexOf(j);if(at>=0)now.splice(at,1);else if(now.length<q.k.length)now.push(j);ss.ans[ss.i]=now;b.classList.toggle('selected',now.includes(j));const check=el.querySelector('#check-multi');check.disabled=now.length!==q.k.length;check.textContent=`정답 확인 (${now.length}/${q.k.length})`;});el.querySelector('#check-multi').onclick=()=>commit(ss.ans[ss.i]); }else opts.forEach(b=>b.onclick=()=>commit(+b.dataset.j));
 }
 function renderDone(el,ss,onEnd){
   const n=ss.qs.length, c=ss.qs.filter((q,i)=>isCorrect(q,ss.ans[i])).length;
@@ -708,7 +710,7 @@ function startExam(g){
 }
 const fmt=ms=>{const s=Math.max(0,ms/1000|0);return `${String(s/3600|0).padStart(2,'0')}:${String(s/60%60|0).padStart(2,'0')}:${String(s%60|0).padStart(2,'0')}`;};
 function examRun(el){
-  const N=ex.qs.length, q=ex.qs[ex.i], picked=ex.ans[ex.i];
+  const N=ex.qs.length, q=ex.qs[ex.i], picked=ex.ans[ex.i], multi=isMultiAnswer(q), selected=multi&&Array.isArray(picked)?picked:(picked?[picked]:[]);
   el.innerHTML=`
     <div class="exhead">
       <div class="row" style="margin-bottom:8px">
@@ -720,9 +722,10 @@ function examRun(el){
     <div class="exwrap" style="margin-top:14px">
       <div class="exmain">
         <div class="card pad">
-          <div class="qmeta"><span class="chip">${q.pts?q.pts+'점':''}</span>${q.a?`<span class="chip">${esc(q.a)}</span>`:''}${q.o.length!==4?`<span class="chip">보기 ${q.o.length}개</span>`:''}</div>
+          <div class="qmeta"><span class="chip">${q.pts?q.pts+'점':''}</span>${q.a?`<span class="chip">${esc(q.a)}</span>`:''}${q.o.length!==4?`<span class="chip">보기 ${q.o.length}개</span>`:''}${multi?`<span class="chip warn">정답 ${q.k.length}개 모두 선택</span>`:''}</div>
           <div class="stem"><p class="ask">${esc(q.q)}</p></div>
-          <div class="opts">${q.o.map((o,j)=>`<button class="opt${picked===j+1?' ok':''}" data-j="${j+1}"><b>${j+1}</b><span>${esc(o)}</span></button>`).join('')}</div>
+          <div class="opts">${q.o.map((o,j)=>`<button class="opt${selected.includes(j+1)?' selected':''}" data-j="${j+1}"><b>${j+1}</b><span>${esc(o)}</span></button>`).join('')}</div>
+          ${multi?`<div class="sub" style="margin-top:10px">정답 ${q.k.length}개를 모두 선택하세요. 현재 ${selected.length}/${q.k.length}개 선택</div>`:''}
           <div class="row" style="margin-top:16px;gap:8px">
             <button class="btn sec" id="prev" style="flex:1" ${ex.i?'':'disabled'}>이전</button>
             <button class="btn" id="next" style="flex:1">${ex.i===N-1?'마지막':'다음'}</button></div>
@@ -735,8 +738,7 @@ function examRun(el){
         </div>
       </div>
     </div>`;
-  el.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ex.ans[ex.i]=+b.dataset.j;
-    if(ex.i<N-1){ex.i++;window.scrollTo(0,0);}examRun(el);});
+  el.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{if(multi){const j=+b.dataset.j,now=Array.isArray(ex.ans[ex.i])?[...ex.ans[ex.i]]:[],at=now.indexOf(j);if(at>=0)now.splice(at,1);else if(now.length<q.k.length)now.push(j);if(now.length)ex.ans[ex.i]=now;else delete ex.ans[ex.i];examRun(el);return;}ex.ans[ex.i]=+b.dataset.j;if(ex.i<N-1){ex.i++;window.scrollTo(0,0);}examRun(el);});
   el.querySelector('#prev').onclick=()=>{if(ex.i){ex.i--;window.scrollTo(0,0);examRun(el);}};
   el.querySelector('#next').onclick=()=>{if(ex.i<N-1){ex.i++;window.scrollTo(0,0);examRun(el);}};
   el.querySelector('#sub').onclick=()=>{ if(confirm(`${Object.keys(ex.ans).length}/${N}문항 표기됨. 제출할까요?`)) submitExam(); };
@@ -752,7 +754,7 @@ function submitExam(){
   clearInterval(exT);
   let score=0, maxScore=0, correctN=0;
   ex.qs.forEach((q,j)=>{ const pts=q.pts||2; maxScore+=pts;
-    const ok=isCorrect(q,ex.ans[j]); if(ok){score+=pts;correctN++;} if(ex.ans[j]) record(q,ok); });
+    const ok=isCorrect(q,ex.ans[j]); if(ok){score+=pts;correctN++;} if(hasAnswer(q,ex.ans[j])) record(q,ok); });
   score=Math.round(score*10)/10; maxScore=Math.round(maxScore*10)/10;
   const {tier,tierLabel}=tierOf(score);
   const wrongArea={};
