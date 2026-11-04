@@ -292,7 +292,7 @@ nav.tabs svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1
 <script>
 /* ── 저장소 ─────────────────────────────── */
 const KEY='manjeomlab.v1';
-const D0={goal:20,streak:0,best:0,last:'',days:{},cat:{},prog:{},planDone:{},planAttempts:{},planRuns:{},planCompleted:{},exams:[],rx:[],myGrade:'초등부'};
+const D0={goal:20,streak:0,best:0,last:'',days:{},cat:{},prog:{},planDone:{},planAttempts:{},planRuns:{},planCompleted:{},prayerSeenOn:'',exams:[],rx:[],myGrade:'초등부'};
 let S=Object.assign({},D0,JSON.parse(localStorage.getItem(KEY)||'{}'));
 if(!S.myGrade) S.myGrade='초등부';
 const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
@@ -559,7 +559,7 @@ function vToday(){
     </div>`}
   </div>`;
   wireGradepick(el,vToday);
-  el.querySelector('#go').onclick=()=>{ const qs=sprint?todayPlanQuestions(S.myGrade,round):pickDaily(S.goal); if(sprint){S.planRuns[today()]=round;save();} sess={qs,i:0,ans:[],mode:'daily',round}; vToday(); };
+  el.querySelector('#go').onclick=()=>{ const qs=sprint?todayPlanQuestions(S.myGrade,round):pickDaily(S.goal); if(sprint){S.planRuns[today()]=round;save();} sess={qs,i:0,ans:[],mode:'daily',round,isToday:true}; vToday(); };
   el.querySelectorAll('.goal').forEach(b=>b.onclick=()=>{S.goal=+b.dataset.n;save();vToday();});
 }
 
@@ -577,10 +577,12 @@ function renderPrayer(el,onBegin,onCancel,label='오늘의 학습'){
   el.querySelector('#prayerBegin').onclick=onBegin;
   el.querySelector('#prayerBack').onclick=onCancel;
 }
-const closingPrayerHTML=()=>`<div style="margin:16px 0;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--acc-soft)"><div class="eyebrow">감사로 학습을 마쳐요</div><p style="font-size:15px;line-height:1.85;margin:9px 0 0">${esc(PRAYERS.closingPrayer)}</p></div>`;
 function renderSession(el,ss,onEnd){
   if(ss.i>=ss.qs.length) return renderDone(el,ss,onEnd);
-  if(!ss.prayed)return renderPrayer(el,()=>{ss.prayed=true;renderSession(el,ss,onEnd);},onEnd,ss.round?`오늘의 학습 ${ss.round}회차`:ss.mode==='review'?'말씀 복습':'오늘의 학습');
+  if(ss.isToday&&ss.i===0&&!ss.prayed&&S.prayerSeenOn!==today()){
+    S.prayerSeenOn=today();save();
+    return renderPrayer(el,()=>{ss.prayed=true;renderSession(el,ss,onEnd);},onEnd,ss.round?`오늘의 학습 ${ss.round}회차`:'오늘의 학습');
+  }
   const q=ss.qs[ss.i], picked=ss.ans[ss.i], multi=isMultiAnswer(q);
   const selected=multi&&Array.isArray(picked)?picked:[];
   el.innerHTML=`
@@ -641,7 +643,6 @@ function renderDone(el,ss,onEnd){
     ${wrong.length?`<div><div class="eyebrow" style="margin-bottom:8px">다시 볼 문항 ${wrong.length}개</div>
       ${wrong.slice(0,8).map(q=>`<div style="font-size:13.5px;color:var(--ink2);padding:7px 0;border-bottom:1px solid var(--line)">
       <span class="chip" style="margin-right:6px">${GRADEN[q.s]||'예상문제'}</span>${esc(q.a||'')}</div>`).join('')}</div>`:''}
-    ${closingPrayerHTML()}
     <button class="btn" id="repeat">${ss.round?`오늘 ${(S.planRuns[today()]||ss.round)+1}회차 시작`:'한 번 더 복습하기'}</button>
     <button class="btn sec" id="fin">학습 완료 · 돌아가기</button></div>`;
   el.querySelector('#fin').onclick=onEnd;
@@ -790,7 +791,6 @@ function buildMockExam(g){
 }
 function vExam(){
   const el=document.getElementById('v-exam');
-  if(ex&&ex.phase==='prayer')return renderPrayer(el,beginExam,()=>{ex=null;vExam();},ex.setName);
   if(ex&&ex.phase==='run') return examRun(el);
   if(ex&&ex.phase==='done') return examResult(el);
   if(!S.myGrade){
@@ -835,11 +835,11 @@ function vExam(){
 function startExam(g){
   const qs=buildMockExam(g);
   const setName=`${GRADEN[g]} 모의고사 · ${today()}`;
-  ex={qs,i:0,ans:{},phase:'prayer',setName};
-  clearInterval(exT);vExam();
+  ex={qs,i:0,ans:{},phase:'ready',setName};
+  beginExam();
 }
 function beginExam(){
-  if(!ex||ex.phase!=='prayer')return;
+  if(!ex||ex.phase!=='ready')return;
   ex.phase='run';ex.end=Date.now()+ex.qs.length*SEC_PER*1000;
   clearInterval(exT);
   exT=setInterval(()=>{ if(VIEW!=='exam'||!ex||ex.phase!=='run')return;
@@ -936,7 +936,6 @@ function examResult(el){
           :'<div class="sub">틀린 문항이 없습니다. 완벽해요!</div>';})()}
     </div>
     ${S.rx&&S.rx.length?`<button class="btn" id="drill">틀린 단원 집중 학습 · ${Math.min(20,S.rx.reduce((a,r)=>a+r.n,0)*2)}문항</button>`:''}
-    <div class="card pad">${closingPrayerHTML()}</div>
     <button class="btn sec" id="again">돌아가기</button></div>`;
   el.querySelector('#again').onclick=()=>{ex=null;vExam();};
   const dr=el.querySelector('#drill'); if(dr) dr.onclick=()=>{
