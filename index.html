@@ -291,21 +291,23 @@ nav.tabs svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1
 <script>
 /* ── 저장소 ─────────────────────────────── */
 const KEY='manjeomlab.v1';
-const D0={goal:20,streak:0,best:0,last:'',days:{},cat:{},prog:{},planDone:{},exams:[],rx:[],myGrade:'초등부'};
+const D0={goal:20,streak:0,best:0,last:'',days:{},cat:{},prog:{},planDone:{},planAttempts:{},planRuns:{},exams:[],rx:[],myGrade:'초등부'};
 let S=Object.assign({},D0,JSON.parse(localStorage.getItem(KEY)||'{}'));
 if(!S.myGrade) S.myGrade='초등부';
 const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
 const today=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul'}).format(new Date());
 const EXAM_DATE='2026-11-21';
+const SPRINT_START='2026-11-04';
 function prepInfo(){
-  const [y,m,d]=today().split('-').map(Number), [ey,em,ed]=EXAM_DATE.split('-').map(Number);
-  const day=Math.floor((Date.UTC(y,m-1,d)-Date.UTC(ey,em-1,ed))/86400000)+21;
-  if(day<1||day>21)return null;
-  if(day<=7)return {day,count:45,title:'1차 전체 학습',detail:'선택한 부서의 예상문제 전체를 7일로 나눠 한 바퀴 풉니다.'};
-  if(day<=14)return {day,count:45,title:'2차 오답·핵심 복습',detail:'첫 주와 같은 범위를 다시 풀며 틀린 문항을 우선 확인합니다.'};
-  if(day<=19)return {day,count:50,title:'실전 형식 연습',detail:'4지선다·단일정답 50문항을 풀고, 1~40번 1.7점·41~50번 3.2점 배점으로 연습합니다.'};
-  if(day===20)return {day,count:20,title:'시험 전날 최종 정리',detail:'오답과 암송·성경 연계 문항 20개만 가볍게 복습합니다.'};
-  return {day,count:10,title:'예선 당일 가벼운 확인',detail:'새로운 내용은 시작하지 말고 핵심 문항 10개만 확인하세요.'};
+  const parts=today().split('-').map(Number), [y,m,d]=parts, [ey,em,ed]=EXAM_DATE.split('-').map(Number), [sy,sm,sd]=SPRINT_START.split('-').map(Number);
+  const daysLeft=Math.floor((Date.UTC(ey,em-1,ed)-Date.UTC(y,m-1,d))/86400000);
+  const day=Math.floor((Date.UTC(y,m-1,d)-Date.UTC(sy,sm-1,sd))/86400000)+1;
+  if(day<1||day>18)return null;
+  if(day<=7)return {day,daysLeft,count:45,title:'1차 전체 학습',detail:'선택한 부서의 예상문제 전체를 7일로 나눠 한 바퀴 풉니다.'};
+  if(day<=14)return {day,daysLeft,count:45,title:'2차 오답·핵심 복습',detail:'첫 주와 같은 범위를 다시 풀며 틀린 문항을 우선 확인합니다.'};
+  if(day<=16)return {day,daysLeft,count:50,title:'실전 형식 연습',detail:'4지선다·단일정답 50문항을 풀고, 1~40번 1.7점·41~50번 3.2점 배점으로 연습합니다.'};
+  if(day===17)return {day,daysLeft,count:20,title:'시험 전날 최종 정리',detail:'오답과 암송·성경 연계 문항 20개만 가볍게 복습합니다.'};
+  return {day,daysLeft,count:10,title:'예선 당일 가벼운 확인',detail:'새로운 내용은 시작하지 말고 핵심 문항 10개만 확인하세요.'};
 }
 
 /* 부서 트랙: 2027년 전국성경고사대회 예상문제 - 유년부/초등부/청소년부 */
@@ -468,7 +470,8 @@ function vToday(){
     return;
   }
   const sprint=prepInfo(), taskQs=sprint?todayPlanQuestions(S.myGrade):null;
-  const d=sprint?(S.planDone[today()]||[]).length:doneToday(), g=sprint?(taskQs.length||sprint.count):S.goal, pctv=Math.min(1,d/g), C=2*Math.PI*45;
+  const d=sprint?(S.planAttempts[today()]||0):doneToday(), g=sprint?(taskQs.length||sprint.count):S.goal, pctv=Math.min(1,d/g), C=2*Math.PI*45;
+  const round=sprint?(S.planRuns[today()]||0)+1:0, learned=myPool().filter(q=>S.prog[q.i]).length;
   const total=Object.keys(S.prog).length;
   const plan=missionPlan(g);
   const cat=S.cat[today()]||{rev:0,weak:0,fresh:0};
@@ -483,11 +486,12 @@ function vToday(){
     <p>${S.rx.slice(0,3).map(r=>esc(r.k.split('|')[1])).join(' · ')}${S.rx.length>3?` 외 ${S.rx.length-3}개`:''} 단원을 오늘 학습에 우선 배정합니다.</p>
     </div></div>`:'';
   const sprintHtml=sprint?`<div class="card pad" style="border:1.5px solid var(--acc);background:var(--acc-soft)">
-    <div class="eyebrow">예선까지 ${21-sprint.day}일 · ${sprint.day}/21일차</div>
+    <div class="eyebrow" style="font-weight:800;color:var(--acc)">${sprint.daysLeft===0?'D-DAY':`D-${sprint.daysLeft}`} · 예선 2026년 11월 21일 · 학습 ${sprint.day}/18일차</div>
     <div class="big" style="margin-top:6px">${sprint.title}</div>
     <div class="sub" style="margin-top:5px">${sprint.detail}</div>
-    <div class="sub" style="margin-top:7px;font-weight:700">오늘 배정: ${taskQs.length}문항 · 시험일 2026년 11월 21일</div>
-    <div class="sub" style="margin-top:9px;line-height:1.7">11/1–7 ${myPool().length}문항 전체 · 하루 약 ${Math.ceil(myPool().length/7)}개<br>11/8–14 같은 범위 오답·핵심 복습<br>11/15–19 실전형 50문항 · 11/20 최종 20개 · 11/21 핵심 10개</div>
+    <div class="sub" style="margin-top:7px;font-weight:700">오늘 목표: ${taskQs.length}문항 · ${round}회차 시작</div>
+    <div class="sub" style="margin-top:5px">${GRADEN[S.myGrade]} 전체 ${myPool().length}문항 중 ${learned}문항 학습 기록</div>
+    <div class="sub" style="margin-top:9px;line-height:1.7">11/4–10 전체 학습 · 하루 약 ${Math.ceil(myPool().length/7)}개<br>11/11–17 오답·핵심 복습 · 11/18–19 실전 50문항<br>11/20 최종 20개 · 11/21 시험 당일 핵심 10개</div>
   </div>`:'';
   el.innerHTML=`
   <div class="stack">
@@ -501,7 +505,7 @@ function vToday(){
       </svg><div class="rt"><b class="num">${d}</b><i>/ ${g}문항</i></div></div>
       <div style="flex:1;min-width:0">
         <div class="big">${d>=g?'오늘 목표 달성':'오늘의 학습'}</div>
-        <div class="sub">${d>=g?'연속 학습이 이어졌습니다. 더 풀어도 좋아요.':`${g-d}문항 남았습니다.`}</div>
+        <div class="sub">${d>=g?`오늘 ${d}문항을 풀었습니다. 다음 회차에서 다시 다져보세요.`:`오늘 목표까지 ${Math.max(0,g-d)}문항 남았습니다.`}</div>
       </div>
     </div>
     ${rxHtml}
@@ -533,14 +537,14 @@ function vToday(){
       <div><b class="num">${dueList().length.toLocaleString()}</b><span>복습 대기</span></div>
       <div><b class="num">${S.streak||0}</b><span>연속 일수</span></div>
     </div>
-    <button class="btn" id="go" ${poolN?'':'disabled'}>${sprint?(d>=g?'오늘 단계 다시 풀기':'오늘 단계 시작'):d>=g?'추가 학습 시작':'학습 시작'} · ${g}문항</button>
+    <button class="btn" id="go" ${poolN?'':'disabled'}>${sprint?`오늘 ${round}회차 시작`:(d>=g?'추가 학습 시작':'학습 시작')} · ${g}문항</button>
     ${sprint?'':`<div class="card pad">
       <div class="eyebrow" style="margin-bottom:10px">일일 목표</div>
       <div class="row">${[10,20,30,50].map(n=>`<button class="btn sec goal" data-n="${n}" style="padding:9px 0;${n===S.goal?'border-color:var(--acc);color:var(--acc);font-weight:700':''}">${n}</button>`).join('')}</div>
     </div>`}
   </div>`;
   wireGradepick(el,vToday);
-  el.querySelector('#go').onclick=()=>{ const qs=sprint?todayPlanQuestions(S.myGrade):pickDaily(S.goal); sess={qs,i:0,ans:[],mode:'daily'}; vToday(); };
+  el.querySelector('#go').onclick=()=>{ const qs=sprint?todayPlanQuestions(S.myGrade):pickDaily(S.goal); if(sprint){S.planRuns[today()]=round;save();} sess={qs,i:0,ans:[],mode:'daily',round}; vToday(); };
   el.querySelectorAll('.goal').forEach(b=>b.onclick=()=>{S.goal=+b.dataset.n;save();vToday();});
 }
 
@@ -552,7 +556,7 @@ function renderSession(el,ss,onEnd){
   el.innerHTML=`
     <div class="prog"><i style="width:${ss.i/ss.qs.length*100}%"></i></div>
     <div class="row" style="margin-bottom:12px">
-      <span class="eyebrow">${ss.mode==='review'?'복습':'오늘의 학습'} ${ss.i+1} / ${ss.qs.length}</span>
+      <span class="eyebrow">${ss.mode==='review'?'복습':ss.round?`오늘의 학습 ${ss.round}회차`:'오늘의 학습'} ${ss.i+1} / ${ss.qs.length}</span>
       <button class="ghost" id="quit" style="margin-left:auto">그만두기</button>
     </div>
     <div class="card pad">
@@ -570,7 +574,7 @@ function renderSession(el,ss,onEnd){
   const opts=[...el.querySelectorAll('.opt')];
   const commit=j=>{
     const ok=isCorrect(q,j); ss.ans[ss.i]=j;
-    if(ss.mode!=='exam'){ record(q,ok); if(q._cat==='plan'){const arr=S.planDone[today()]||[];if(!arr.includes(q.i)){arr.push(q.i);S.planDone[today()]=arr;}} markDay(q._cat||(ss.mode==='review'?'rev':'fresh')); }
+    if(ss.mode!=='exam'){ record(q,ok); if(q._cat==='plan'){const arr=S.planDone[today()]||[];if(!arr.includes(q.i)){arr.push(q.i);S.planDone[today()]=arr;}S.planAttempts[today()]=(S.planAttempts[today()]||0)+1;} markDay(q._cat||(ss.mode==='review'?'rev':'fresh')); }
     const kArr=Array.isArray(q.k)?q.k:[q.k], chosenArr=Array.isArray(j)?j:[j];
     opts.forEach(b=>{ b.disabled=true; const bj=+b.dataset.j;
       if(kArr.includes(bj))b.classList.add('ok'); else if(chosenArr.includes(bj))b.classList.add('bad'); else b.classList.add('dim'); });
