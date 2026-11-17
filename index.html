@@ -229,7 +229,7 @@ section.view.on{display:block}
 
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surf);
   border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
-nav.tabs .wrap{display:grid;grid-template-columns:repeat(4,1fr);padding:0}
+nav.tabs .wrap{display:grid;grid-template-columns:repeat(5,1fr);padding:0}
 nav.tabs button{padding:9px 4px 11px;display:flex;flex-direction:column;align-items:center;gap:3px;
   color:var(--ink3);font-size:11px;font-weight:600;border-top:2.5px solid transparent}
 nav.tabs button.on{color:var(--acc);border-top-color:var(--acc)}
@@ -275,13 +275,15 @@ nav.tabs svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1
 
 <nav class="tabs"><div class="wrap">
   <button data-v="today" class="on"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/></svg>오늘</button>
-  <button data-v="review"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>복습</button>
+  <button data-v="memory"><svg viewBox="0 0 24 24"><path d="M12 5C8 2 3 3 3 3v16s5-1 9 2c4-3 9-2 9-2V3s-5-1-9 2zM12 5v16"/></svg>암송</button>
+  <button data-v="review"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>오답노트</button>
   <button data-v="stats"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>분석</button>
   <button data-v="exam"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></svg>모의고사</button>
 </div></nav>
 
 <main class="wrap">
   <section class="view on" id="v-today"></section>
+  <section class="view" id="v-memory"></section>
   <section class="view" id="v-review"></section>
   <section class="view" id="v-stats"></section>
   <section class="view" id="v-exam"></section>
@@ -293,7 +295,7 @@ nav.tabs svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1
 <script>
 /* ── 저장소 ─────────────────────────────── */
 const KEY='manjeomlab.v1';
-const D0={goal:20,streak:0,best:0,last:'',days:{},cat:{},prog:{},planDone:{},planAttempts:{},planRuns:{},planCompleted:{},dailySelections:{},memoryProgress:{},memoryPlans:{},memoryDayDone:{},mockSelections:{},mockCoverage:{},prayerSeenOn:'',exams:[],rx:[],myGrade:'초등부'};
+const D0={goal:20,streak:0,best:0,last:'',days:{},cat:{},prog:{},planDone:{},planAttempts:{},planRuns:{},planCompleted:{},dailySelections:{},memoryProgress:{},memoryPlans:{},memoryDayDone:{},mockSelections:{},mockCoverage:{},wrongOrigins:{},prayerSeenOn:'',exams:[],rx:[],myGrade:'초등부'};
 let S=Object.assign({},D0,JSON.parse(localStorage.getItem(KEY)||'{}'));
 if(!S.myGrade) S.myGrade='초등부';
 const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
@@ -408,11 +410,12 @@ const answerLabel=q=>Array.isArray(q.k)?q.k.join(',')+'번':q.k+'번';
 const hasAnswer=(q,answer)=>isMultiAnswer(q)?Array.isArray(answer)&&answer.length>0:answer!==undefined&&answer!==null;
 
 /* ── 진행 기록 (내 학년 문제만 대상) ───────── */
-function record(q,ok){
+function record(q,ok,origin='review'){
   const p=S.prog[q.i]||{n:0,c:0,box:0,due:0};
   p.n++; if(ok){p.c++; p.box=Math.min(6,p.box+1);} else {p.box=0;}
   p.due=Date.now()+IV[p.box]*864e5; p.last=ok?1:0; p.lastAttemptAt=Date.now();
-  S.prog[q.i]=p; save();
+  S.prog[q.i]=p;
+  if(!ok){const origins=S.wrongOrigins[q.i]||{};origins[origin]=(origins[origin]||0)+1;S.wrongOrigins[q.i]=origins;}save();
   if(q.mids){for(const mid of new Set(q.mids.flatMap(memoryAliases))){const m=S.memoryProgress[mid]||{reads:0,quizN:0,quizC:0};m.quizN=(m.quizN||0)+1;if(ok)m.quizC=(m.quizC||0)+1;S.memoryProgress[mid]=m;}save();}
 }
 const dueList=()=>reviewPool().filter(q=>{const p=S.prog[q.i];return p&&p.last===0||(p&&p.due<=Date.now()&&p.n>0&&p.c/p.n<1)});
@@ -525,7 +528,7 @@ document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>{
 });
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function render(){ const n=document.getElementById('streakN'); if(n) n.textContent=S.streak||0;
-  ({today:vToday,review:vReview,stats:vStats,exam:vExam})[VIEW](); }
+  ({today:vToday,memory:vMemory,review:vReview,stats:vStats,exam:vExam})[VIEW](); }
 
 function gradepickHTML(){
   return `<div class="card pad">
@@ -669,7 +672,7 @@ function renderSession(el,ss,onEnd){
     return renderPrayer(el,()=>{ss.prayed=true;renderSession(el,ss,onEnd);},onEnd,ss.round?`오늘의 학습 ${ss.round}회차`:'오늘의 학습');
   }
   if(ss.memoryLessons&&(ss.memoryIndex||0)<ss.memoryLessons.length)return renderMemoryCard(el,ss,onEnd);
-  if(!ss.qs.length){el.innerHTML=`<div class="card pad"><div class="big">✓ 오늘의 암송 원문 확인 완료</div><div class="sub" style="margin-top:10px">어려웠던 말씀은 복습 기록에 남겼어요. 다음에는 보기를 보고 정확한 표현을 구별해 보세요.</div><button class="btn" id="memoryQuiz" style="margin-top:16px">암송형 문제 20개 풀기</button><button class="btn sec" id="memoryFinish" style="margin-top:10px">돌아가기</button></div>`;el.querySelector('#memoryFinish').onclick=onEnd;el.querySelector('#memoryQuiz').onclick=()=>{ss.qs=distinctDailyQuestions('초등부',20,[],MEMORY_Q);rememberDailySelection('초등부',ss.qs);ss.mode='review';ss.i=0;ss.ans=[];renderSession(el,ss,onEnd);};return;}
+  if(!ss.qs.length){el.innerHTML=`<div class="card pad"><div class="big">✓ 오늘의 암송 원문 확인 완료</div><div class="sub" style="margin-top:10px">어려웠던 말씀은 복습 기록에 남겼어요. 다음에는 보기를 보고 정확한 표현을 구별해 보세요.</div><button class="btn" id="memoryQuiz" style="margin-top:16px">암송형 문제 ${Math.min(20,(ss.practicePool||MEMORY_Q).length)}개 풀기</button><button class="btn sec" id="memoryFinish" style="margin-top:10px">돌아가기</button></div>`;el.querySelector('#memoryFinish').onclick=onEnd;el.querySelector('#memoryQuiz').onclick=()=>{const pool=ss.practicePool||MEMORY_Q,key='초등부|memory';ss.qs=distinctDailyQuestions(key,Math.min(20,pool.length),[],pool);rememberDailySelection(key,ss.qs);ss.mode='review';ss.i=0;ss.ans=[];renderSession(el,ss,onEnd);};return;}
   if(ss.i>=ss.qs.length)return renderDone(el,ss,onEnd);
   const q=ss.qs[ss.i], picked=ss.ans[ss.i], multi=isMultiAnswer(q);
   const selected=multi&&Array.isArray(picked)?picked:[];
@@ -695,7 +698,7 @@ function renderSession(el,ss,onEnd){
   const opts=[...el.querySelectorAll('.opt')];
   const commit=j=>{
     const ok=isCorrect(q,j); ss.ans[ss.i]=j;
-    if(ss.mode!=='exam'){ record(q,ok); const planned=ss.mode==='daily'&&ss.round>0; if(planned){const arr=S.planDone[today()]||[];if(!arr.includes(q.i)){arr.push(q.i);S.planDone[today()]=arr;}S.planAttempts[today()]=(S.planAttempts[today()]||0)+1;} markDay(planned?'plan':ss.mode==='review'?'rev':q._cat||'fresh'); }
+    if(ss.mode!=='exam'){ record(q,ok,ss.origin||(ss.isToday?'daily':'review')); const planned=ss.mode==='daily'&&ss.round>0; if(planned){const arr=S.planDone[today()]||[];if(!arr.includes(q.i)){arr.push(q.i);S.planDone[today()]=arr;}S.planAttempts[today()]=(S.planAttempts[today()]||0)+1;} markDay(planned?'plan':ss.mode==='review'?'rev':q._cat||'fresh'); }
     const kArr=Array.isArray(q.k)?q.k:[q.k], chosenArr=Array.isArray(j)?j:[j];
     opts.forEach(b=>{ b.disabled=true; const bj=+b.dataset.j;
       if(kArr.includes(bj))b.classList.add('ok'); else if(chosenArr.includes(bj))b.classList.add('bad'); else b.classList.add('dim'); });
@@ -741,6 +744,57 @@ function renderDone(el,ss,onEnd){
   };
 }
 
+/* ── 독립 암송 학습 ─────────────────────── */
+let msess=null,memoryUnit='',memoryKind='',memoryGrade='';
+function memoryPracticePool(){
+  const pool=S.myGrade==='초등부'?MEMORY_Q:myPool().filter(q=>q.src==='외');
+  return pool.filter(q=>(!memoryKind||q.memoryType===memoryKind)&&(!memoryUnit||(q.mids||[]).includes(memoryUnit)||q.a===memoryUnit));
+}
+function vMemory(){
+  if(memoryGrade!==S.myGrade){memoryGrade=S.myGrade;memoryUnit='';memoryKind='';msess=null;}
+  const el=document.getElementById('v-memory');
+  if(msess)return renderSession(el,msess,()=>{msess=null;vMemory();});
+  const elementary=S.myGrade==='초등부',lessons=elementary?MEMORY_LESSONS:[],pool=memoryPracticePool(),bad=reviewPriority(pool.filter(mistakePending));
+  const selected=memoryUnit?lessons.filter(l=>l.id===memoryUnit):missingMemoryLessons().slice(0,10);
+  el.innerHTML=`<div class="stack"><div class="card pad" style="grid-column:1/-1"><div class="eyebrow">말씀을 읽고 · 가리고 외우고 · 문제로 확인해요</div><div class="big" style="margin-top:8px">암송 학습실</div><div class="sub" style="margin-top:8px">${elementary?'기본 50과와 특별 2과의 지정 말씀, 기출형 연습 279문항을 따로 공부할 수 있어요.':'선택한 부서의 암송 출처 문제를 따로 연습해요.'} 여기서 틀린 문제도 오답노트에 저장됩니다. 암송 확인은 스스로 하는 방식이에요.</div>
+  ${elementary?`<div class="sub" style="margin-top:8px">자가 암송 확인 ${lessons.filter(l=>S.memoryProgress[l.id]?.recalled===true).length}/52과 · 같은 말씀인 13과·37과는 함께 기록돼요.</div><label style="display:block;margin-top:14px">공과 선택 <select id="memoryUnit" style="width:100%;padding:12px;margin-top:6px"><option value="">전체 공과</option>${lessons.map(l=>`<option value="${esc(l.id)}" ${memoryUnit===l.id?'selected':''}>${esc(l.title)}</option>`).join('')}</select></label>`:''}
+  <label style="display:block;margin-top:14px">문제 유형 <select id="memoryKind" style="width:100%;padding:12px;margin-top:6px"><option value="">전체 유형</option>${[...new Set((elementary?MEMORY_Q:myPool().filter(q=>q.src==='외')).map(q=>q.memoryType).filter(Boolean))].map(t=>`<option value="${esc(t)}" ${memoryKind===t?'selected':''}>${esc(MEMORY_TYPE[t]||'말씀 확인')}</option>`).join('')}</select></label></div>
+  <div class="card pad" style="grid-column:1/-1;display:grid;gap:10px">${elementary?`<button class="btn" id="memoryRead" ${selected.length?'':'disabled'}>${memoryUnit?'선택한 말씀':'미확인 말씀 최대 10과'} 읽고 가려서 외우기</button>`:''}<button class="btn${elementary?' sec':''}" id="memoryStart" ${pool.length?'':'disabled'}>암송 문제 연습 · ${Math.min(20,pool.length)}문항</button><button class="btn sec" id="memoryWrong" ${bad.length?'':'disabled'}>아직 어려운 암송 문제 복습 · ${Math.min(20,bad.length)}문항</button><div class="sub">연속 연습에서는 직전 문제를 최대한 피하고 적게 푼 문제를 먼저 배정해요. 선택한 범위가 작으면 같은 문제가 다시 나올 수 있어요.</div></div>
+  ${elementary?`<div class="card pad" style="grid-column:1/-1"><div class="eyebrow">전체 암송 말씀 · 공과를 눌러 원문 확인</div>${lessons.filter(l=>!memoryUnit||l.id===memoryUnit).map(l=>`<details style="padding:12px 0;border-bottom:1px solid var(--line)"><summary style="cursor:pointer;line-height:1.7">${esc(l.title)} · ${S.memoryProgress[l.id]?.recalled===true?'암송 확인':'연습 필요'}</summary>${l.verses.map(v=>`<p style="line-height:1.9"><b>${esc(v.reference)}${v.scope==='source_highlighted_excerpt'?' · 지정된 앞부분':''}</b><br>${esc(v.text)}</p>`).join('')}<button class="btn sec" data-memoryread="${esc(l.id)}">이 말씀 가리고 외우기</button></details>`).join('')}</div>`:''}</div>`;
+  const start=qs=>{msess={qs,i:0,ans:[],mode:'review',origin:'memory'};vMemory();};
+  el.querySelector('#memoryStart').onclick=()=>{if(!pool.length)return;const key=S.myGrade+'|memory';const qs=distinctDailyQuestions(key,Math.min(20,pool.length),[],pool);rememberDailySelection(key,qs);start(qs);};
+  el.querySelector('#memoryWrong').onclick=()=>{if(bad.length)start(bad.slice(0,20));};
+  el.querySelector('#memoryKind').onchange=e=>{memoryKind=e.target.value;vMemory();};
+  if(elementary){el.querySelector('#memoryUnit').onchange=e=>{memoryUnit=e.target.value;vMemory();};const read=ls=>{if(!ls.length)return;msess={qs:[],i:0,ans:[],mode:'memoryCards',origin:'memory',memoryLessons:ls,memoryIndex:0,practicePool:MEMORY_Q.filter(q=>ls.some(l=>(q.mids||[]).includes(l.id)))};vMemory();};el.querySelector('#memoryRead').onclick=()=>read(selected);el.querySelectorAll('[data-memoryread]').forEach(b=>b.onclick=()=>read(lessons.filter(l=>l.id===b.dataset.memoryread)));}
+}
+
+/* ── 오답 출처 및 모의고사 기록 ───────────── */
+const ORIGIN_NAME={daily:'오늘의 학습',exam:'모의고사',memory:'암송 학습',review:'복습',legacy:'이전 기록'};
+let reviewFilter='all',reviewPage=0,reviewExamIndex=null;
+function examHistory(){return S.exams.map((e,index)=>({e,index})).filter(({e})=>e.grade?e.grade===S.myGrade:(e.set||'').startsWith(S.myGrade)).reverse();}
+function questionOrigins(q){
+  const found=new Set(Object.keys(S.wrongOrigins[q.i]||{}).filter(k=>ORIGIN_NAME[k]));
+  if(S.exams.some(e=>(e.wrongIds||[]).includes(q.i)))found.add('exam');
+  if(!found.size&&S.prog[q.i]?.n>S.prog[q.i]?.c)found.add('legacy');
+  return [...found];
+}
+function examWrongQuestions(e){
+  const byId=new Map([...DB,...MEMORY_Q].map(q=>[q.i,q]));
+  return (e.wrongIds||[]).map(id=>{const q=byId.get(id),d=(e.wrongDetails||[]).find(d=>d.i===id);return q?{...q,...(d?{o:d.o,k:d.k}:{}),examDetail:d}:null;}).filter(Boolean);
+}
+function wrongAnswerHTML(q,detail,historical=true){
+  const correct=Array.isArray(q.k)?q.k.map(k=>q.o[k-1]).join(' / '):q.o[q.k-1];
+  const mine=detail?(detail.answer===null?'미응답':(Array.isArray(detail.answer)?detail.answer:[detail.answer]).map(k=>k+'번 · '+q.o[k-1]).join(' / ')):'이전 버전에는 선택한 답이 저장되지 않았어요.';
+  return `<div class="sub" style="margin-top:10px;line-height:1.8">${detail||historical?'내 답: '+esc(mine)+'<br>':''}정답: ${answerLabel(q)} · ${esc(correct)}<br>${esc(q.e||'정답과 원문 말씀을 확인해 주세요.')}</div>`;
+}
+function examArchiveHTML(){
+  const history=examHistory();
+  if(!history.length)return '<div class="card pad" style="grid-column:1/-1"><div class="big">모의고사 오답</div><div class="sub" style="margin-top:8px">모의고사를 제출하면 회차별 오답과 미응답 문제가 여기에 저장돼요.</div></div>';
+  if(!history.some(h=>h.index===reviewExamIndex))reviewExamIndex=history[0].index;
+  const e=S.exams[reviewExamIndex],qs=examWrongQuestions(e),hasIds=Array.isArray(e.wrongIds);
+  return `<div class="card pad" style="grid-column:1/-1"><div class="big">모의고사 회차별 오답</div><label style="display:block;margin-top:12px">응시 기록 선택<select id="reviewExamSelect" style="width:100%;padding:12px;margin-top:6px">${history.map(({e,index})=>`<option value="${index}" ${index===reviewExamIndex?'selected':''}>${esc(e.set||e.d)} · ${e.score}점${Array.isArray(e.wrongIds)?' · 오답 '+e.wrongIds.length+'개':''}</option>`).join('')}</select></label><div class="sub" style="margin-top:10px">${hasIds?`이 회차 오답·미응답 ${qs.length}문항. 이후 맞혔어도 이 시험의 오답 기록은 남아요.`:'이전 버전에서 문항별 기록을 저장하지 않은 시험입니다. 통합 오답 기록은 아래 이전 기록에서 확인해 주세요.'}</div>${qs.length?`<button class="btn" id="archiveWrongDrill" style="margin-top:12px">이 회차 오답 전부 다시 풀기 · ${qs.length}문항</button>${qs.map(q=>`<details style="padding:12px 0;border-bottom:1px solid var(--line)"><summary style="cursor:pointer;line-height:1.7">${q.examDetail?q.examDetail.no+'번 · ':''}${esc(q.q)}</summary>${wrongAnswerHTML(q,q.examDetail)}</details>`).join('')}`:hasIds?'<p class="sub">이 회차에는 틀린 문제가 없어요.</p>':''}</div>`;
+}
+
 /* ── 복습 ───────────────────────────────── */
 let rsess=null;
 function vReview(){
@@ -752,15 +806,21 @@ function vReview(){
     wireGradepick(el,vReview);
     return;
   }
-  const due=reviewPriority(dueList()), wr=reviewPriority(wrongList()), memory=S.myGrade==='초등부'?MEMORY_Q:myPool().filter(q=>q.src==='외');
-  const repeated=repeatedWrongList(), weak=weakAreas(6).filter(a=>a.r<.8), weakKeys=weak.map(a=>a.k);
+  const byOrigin=q=>reviewFilter==='all'||questionOrigins(q).includes(reviewFilter);
+  const allWrong=wrongList(),due=reviewPriority(dueList().filter(byOrigin)), wr=reviewPriority(allWrong.filter(byOrigin)), memory=S.myGrade==='초등부'?MEMORY_Q:myPool().filter(q=>q.src==='외');
+  const repeated=repeatedWrongList().filter(byOrigin), weak=weakAreas(6).filter(a=>a.r<.8), weakKeys=weak.map(a=>a.k);
   const weakPool=reviewPriority(reviewPool().filter(q=>weakKeys.includes(q.s+'|'+(q.a||'기타'))));
+  reviewPage=Math.min(reviewPage,Math.max(0,Math.ceil(wr.length/20)-1));
   el.innerHTML=`<div class="stack">
     <div class="card pad">
-      <div class="eyebrow">간격 반복 복습 · ${GRADEN[S.myGrade]}</div>
+      <div class="eyebrow">오늘의 학습 · 모의고사 · 암송 학습 오답을 함께 저장해요</div>
+      <div class="big" style="margin-top:8px">오답노트 · ${GRADEN[S.myGrade]}</div>
+      <label style="display:block;margin-top:12px">오답 출처 <select id="reviewOrigin" style="width:100%;padding:12px;margin-top:6px">${[['all','전체 오답'],...Object.entries(ORIGIN_NAME)].map(([key,label])=>`<option value="${key}" ${reviewFilter===key?'selected':''}>${label} · ${allWrong.filter(q=>key==='all'||questionOrigins(q).includes(key)).length}개</option>`).join('')}</select></label>
+      <div class="sub" style="margin-top:10px">이전 기록은 그대로 유지합니다. 출처를 알 수 없는 과거 오답은 ‘이전 기록’에 표시합니다. 모의고사 오답은 제출 후 저장돼요.</div>
       <div class="big" style="margin-top:6px">복습 대기 <span class="num">${due.length}</span>문항</div>
-      <div class="sub" style="margin-top:4px">틀린 문항은 다음 날, 맞힐수록 간격이 1·2·4·8·16·32일로 늘어납니다.</div>
+      <div class="sub" style="margin-top:4px">틀린 문항은 바로 복습할 수 있고, 맞힐수록 간격이 1·2·4·8·16·32일로 늘어납니다.</div>
     </div>
+    ${examArchiveHTML()}
     <div class="mini">
       <div><b class="num">${wr.length}</b><span>오답노트</span></div>
       <div><b class="num">${Object.values(S.prog).filter(p=>p.box>=4).length}</b><span>장기기억 전환</span></div>
@@ -783,16 +843,19 @@ function vReview(){
       ${S.myGrade==='초등부'?'<button class="btn sec" id="memoryCards" style="margin-top:12px">오늘의 원문 5개 읽고 가려서 외우기</button>':''}
       <button class="btn sec" id="memoryDrill" style="margin-top:12px" ${memory.length?'':'disabled'}>암송 문항 풀기 · ${Math.min(20,memory.length)}문항</button>
     </div>
-    ${due.length?'':'<div class="empty">복습할 문항이 없습니다.<br>오늘의 학습을 먼저 진행해 주세요.</div>'}
+    ${due.length?'':'<div class="empty">선택한 출처에 지금 복습할 문항이 없어요. 다른 출처나 모의고사 회차별 오답도 확인해 보세요.</div>'}
     ${wr.length?`<div class="card pad">
       <div class="eyebrow" style="margin-bottom:10px">오답노트 (틀렸던 적 있는 문항)</div>
-      ${wr.slice(0,15).map(q=>`<div style="font-size:13.5px;color:var(--ink2);padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="chip" style="margin-right:6px">${GRADEN[q.s]||'예상문제'}</span>${esc((q.q||'').slice(0,42))}${q.q.length>42?'…':''}
-        <span style="float:right;color:var(--bad)" class="num">${S.prog[q.i].n-S.prog[q.i].c}회 틀림</span></div>`).join('')}
-      ${wr.length>15?`<div class="sub" style="margin-top:8px">외 ${wr.length-15}개</div>`:''}
+      ${wr.slice(reviewPage*20,(reviewPage+1)*20).map(q=>`<details style="font-size:14px;padding:12px 0;border-bottom:1px solid var(--line)"><summary style="cursor:pointer;line-height:1.7">
+        ${esc(q.q)} · ${S.prog[q.i].n-S.prog[q.i].c}회 틀림</summary><div class="sub" style="margin-top:8px">출처: ${questionOrigins(q).map(k=>ORIGIN_NAME[k]).join(' · ')} · ${mistakePending(q)?'보강 필요':'두 번 연속 정답 확인'}</div>${wrongAnswerHTML(q,null,false)}</details>`).join('')}
+      <div class="row" style="margin-top:12px;gap:10px"><button class="ghost" id="wrongPrev" ${reviewPage?'':'disabled'}>이전</button><span class="sub">${reviewPage+1}/${Math.max(1,Math.ceil(wr.length/20))}쪽</span><button class="ghost" id="wrongNext" ${(reviewPage+1)*20<wr.length?'':'disabled'}>다음</button></div>
       <button class="btn sec" id="wrongDrill" style="margin-top:12px">오답노트 다시 풀기 · ${Math.min(30,wr.length)}문항</button>
     </div>`:''}
   </div>`;
+  el.querySelector('#reviewOrigin').onchange=e=>{reviewFilter=e.target.value;reviewPage=0;vReview();};
+  const archiveSelect=el.querySelector('#reviewExamSelect');if(archiveSelect)archiveSelect.onchange=e=>{reviewExamIndex=Number(e.target.value);vReview();};
+  const archiveDrill=el.querySelector('#archiveWrongDrill');if(archiveDrill)archiveDrill.onclick=()=>{const qs=examWrongQuestions(S.exams[reviewExamIndex]);if(qs.length){rsess={qs,i:0,ans:[],mode:'review'};vReview();}};
+  const prev=el.querySelector('#wrongPrev'),next=el.querySelector('#wrongNext');if(prev)prev.onclick=()=>{if(reviewPage){reviewPage--;vReview();}};if(next)next.onclick=()=>{if((reviewPage+1)*20<wr.length){reviewPage++;vReview();}};
   const b=el.querySelector('#rg'); if(due.length) b.onclick=()=>{
     rsess={qs:due.slice(0,20),i:0,ans:[],mode:'review'}; vReview(); };
   const wd=el.querySelector('#wrongDrill'); if(wd) wd.onclick=()=>{
@@ -800,8 +863,8 @@ function vReview(){
   el.querySelector('#repeatedDrill').onclick=()=>{rsess={qs:repeated.slice(0,20),i:0,ans:[],mode:'review'};vReview();};
   el.querySelector('#weakDrill').onclick=()=>{rsess={qs:weakPool.slice(0,20),i:0,ans:[],mode:'review'};vReview();};
   const md=el.querySelector('#memoryDrill'); if(md) md.onclick=()=>{
-    const qs=S.myGrade==='초등부'?distinctDailyQuestions(S.myGrade,20,[],memory):shuffle([...memory]).slice(0,20);rememberDailySelection(S.myGrade,qs);rsess={qs,i:0,ans:[],mode:'review'}; vReview(); };
-  const mc=el.querySelector('#memoryCards');if(mc)mc.onclick=()=>{rsess={qs:[],i:0,ans:[],mode:'memoryCards',memoryLessons:memoryDailyLessons(),memoryIndex:0};vReview();};
+    const qs=S.myGrade==='초등부'?distinctDailyQuestions(S.myGrade,20,[],memory):shuffle([...memory]).slice(0,20);rememberDailySelection(S.myGrade,qs);rsess={qs,i:0,ans:[],mode:'review',origin:'memory'}; vReview(); };
+  const mc=el.querySelector('#memoryCards');if(mc)mc.onclick=()=>{rsess={qs:[],i:0,ans:[],mode:'memoryCards',origin:'memory',memoryLessons:memoryDailyLessons(),memoryIndex:0};vReview();};
 }
 
 /* ── 분석 ───────────────────────────────── */
@@ -968,7 +1031,7 @@ function vExam(){
   el.querySelectorAll('.exs').forEach(b=>b.onclick=()=>startExam(b.dataset.g));
   el.querySelector('#examPending').onclick=()=>examPractice(pending.slice(0,30));
   el.querySelector('#examUnseen').onclick=()=>examPractice(spreadPick(unseen,30));
-  if(S.myGrade==='초등부')el.querySelector('#examMemory').onclick=()=>{rsess={qs:[],i:0,ans:[],mode:'memoryCards',memoryLessons:missingMemoryLessons().slice(0,10),memoryIndex:0};document.querySelector('nav.tabs button[data-v="review"]').click();};
+  if(S.myGrade==='초등부')el.querySelector('#examMemory').onclick=()=>{rsess={qs:[],i:0,ans:[],mode:'memoryCards',origin:'memory',memoryLessons:missingMemoryLessons().slice(0,10),memoryIndex:0};document.querySelector('nav.tabs button[data-v="review"]').click();};
 }
 function startExam(g){
   const qs=buildMockExam(g);
@@ -1044,7 +1107,7 @@ function submitExam(){
   clearInterval(exT);
   let score=0, maxScore=0, correctN=0;
   ex.qs.forEach((q,j)=>{ const pts=q.pts||2; maxScore+=pts;
-    const ok=isCorrect(q,ex.ans[j]); if(ok){score+=pts;correctN++;} record(q,ok); });
+    const ok=isCorrect(q,ex.ans[j]); if(ok){score+=pts;correctN++;} record(q,ok,'exam'); });
   score=Math.round(score*10)/10; maxScore=Math.round(maxScore*10)/10;
   const {tier,tierLabel}=tierOf(score);
   const wrongArea={};
@@ -1053,7 +1116,7 @@ function submitExam(){
   S.rx=Object.entries(wrongArea).sort((a,b)=>b[1]-a[1]).slice(0,6)
        .map(([k,n])=>({k,n,d:today()}));
   Object.assign(ex,{score,maxScore,correctN,tier,tierLabel,phase:'done'});
-  S.exams.push({d:today(),set:ex.setName,grade:ex.grade,score,tier,tierLabel,ids:ex.qs.map(q=>q.i),wrongIds:ex.qs.filter((q,j)=>!isCorrect(q,ex.ans[j])).map(q=>q.i)}); save(); vExam();
+  S.exams.push({d:today(),set:ex.setName,grade:ex.grade,score,tier,tierLabel,ids:ex.qs.map(q=>q.i),wrongIds:ex.qs.filter((q,j)=>!isCorrect(q,ex.ans[j])).map(q=>q.i),wrongDetails:ex.qs.flatMap((q,j)=>isCorrect(q,ex.ans[j])?[]:[{i:q.i,no:j+1,o:[...q.o],k:q.k,answer:ex.ans[j]??null}])}); save(); vExam();
 }
 function examResult(el){
   const N=ex.qs.length,wrong=ex.qs.filter((q,j)=>!isCorrect(q,ex.ans[j]));
@@ -1077,9 +1140,11 @@ function examResult(el){
     </div>
     ${wrong.length?`<button class="btn" id="drill">방금 틀린 문제 전부 다시 풀기 · ${wrong.length}문항</button>
     <div class="card pad" style="grid-column:1/-1"><div class="eyebrow">틀린 문제 확인 · 미응답 포함</div><div class="sub" style="margin-top:8px">아래 항목을 누르면 내가 고른 답과 정답·해설을 볼 수 있어요. 오답은 자동 저장되며 두 번 연속 맞힐 때까지 보강 목록에 남습니다.</div>${ex.qs.map((q,j)=>isCorrect(q,ex.ans[j])?'':`<details style="padding:12px 0;border-bottom:1px solid var(--line)"><summary style="cursor:pointer;line-height:1.6">${j+1}번 · ${esc(q.q)}</summary><div class="sub" style="margin-top:10px">내 답: ${hasAnswer(q,ex.ans[j])?esc(Array.isArray(ex.ans[j])?ex.ans[j].join(',')+'번':ex.ans[j]+'번'):'미응답'}<br>정답: ${answerLabel(q)} · ${esc(q.o[q.k-1])}<br>${esc(q.e||'정답과 원문 말씀을 확인해 주세요.')}</div></details>`).join('')}</div>`:''}
+    <button class="btn sec" id="savedExamWrong">모의고사 오답노트에서 확인</button>
     <button class="btn sec" id="newExam">다른 문제로 다음 모의고사 시작</button>
     <button class="btn sec" id="again">모의고사 목록으로</button></div>`;
   el.querySelector('#again').onclick=()=>{ex=null;vExam();};
+  el.querySelector('#savedExamWrong').onclick=()=>{reviewFilter='exam';reviewPage=0;reviewExamIndex=S.exams.length-1;rsess=null;document.querySelector('nav.tabs button[data-v="review"]').click();};
   el.querySelector('#newExam').onclick=()=>startExam(ex.grade||ex.qs[0].s);
   const dr=el.querySelector('#drill'); if(dr) dr.onclick=()=>examPractice(wrong);
 
