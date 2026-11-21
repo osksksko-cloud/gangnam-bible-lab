@@ -44,7 +44,7 @@
  if(new URLSearchParams(location.search).get('usage')==='off')setOptOut(true);
  window.addEventListener('online',()=>schedule(0));
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)visit();});
- window.addEventListener('pointerdown',()=>{if(disabled())return;const s=read();if(Date.now()-(s.lastActivity||0)>60000){s.lastActivity=Date.now();write(s);}},{passive:true});
+ window.addEventListener('pointerdown',()=>{if(disabled())return;const s=read(),idle=Date.now()-(s.lastActivity||0);if(idle>30*60000)visit();else if(idle>60000){s.lastActivity=Date.now();write(s);}},{passive:true});
  function notice(){
   const footer=document.createElement('footer');footer.style.cssText='max-width:940px;margin:24px auto 100px;padding:16px;color:var(--ink3,#556);font-size:12px;line-height:1.8';
   footer.innerHTML='이용량 확인을 위해 익명 브라우저 식별자와 학습 활동 횟수를 최대 90일간 집계합니다. 이름·점수·선택한 답은 전송하지 않습니다. 통계 연결이 끊겨도 학습할 수 있어요.'+' <button type="button" id="usageToggle" style="font:inherit;color:inherit;text-decoration:underline;background:none;border:0;cursor:pointer;padding:4px"></button>';
