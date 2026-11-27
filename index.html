@@ -995,7 +995,7 @@ function vExam(){
     <div class="card pad" style="grid-column:1/-1">
       <div class="eyebrow">기출 암송 비율 참고 · 매번 새로 구성</div>
       <div class="big" style="margin-top:6px">${GRADEN[S.myGrade]} 실전 모의고사</div>
-      <div class="sub" style="margin-top:5px">${S.myGrade==='초등부'?'제공된 초4 기출자료의 암송 7·7·10문항 비율을 번갈아 적용합니다. 마지막 10문항에는 암송형 3·5·6개를 배정하고, 빈칸·장절·정확한 표현·구절 비교 유형을 반영합니다.':'1~40번은 교사용 예상문제에서, 41~50번은 학습·성경·암송 출처에서 뽑습니다.'} 보기 4개·정답 1개이며 배점은 1~40번 1.7점, 41~50번 3.2점입니다. 기출 비율을 참고한 연습 구성입니다.</div>
+      <div class="sub" style="margin-top:5px">${S.myGrade==='초등부'?'제공된 초4 기출자료의 암송 7·7·10문항 비율을 번갈아 적용합니다. 마지막 10문항에는 암송형 3·5·6개를 배정하고, 빈칸·장절·정확한 표현·구절 비교 유형을 반영합니다.':'1~40번은 교사용 예상문제에서, 41~50번은 학습·성경·암송 출처에서 뽑습니다.'} 보기 4개·정답 1개이며 배점은 1~40번 1.7점, 41~50번 3.2점입니다. 기출 비율을 참고한 연습 구성입니다.</div>${S.myGrade==='초등부'?`<div class="row" style="margin-top:14px;gap:10px"><a class="btn" href="national-prediction-2027.html" style="text-decoration:none">기출 변형 추론 50문항 연습</a><a href="national-analysis-2027.html">연도별 변형 분석 보기</a></div><div class="sub" style="margin-top:8px">2027 예상문제로 새로 만든 별도 연습자료입니다. 실제 출제를 보장하지 않으며, 이 자료의 답안은 별도로 저장됩니다.</div>`:''}
     </div>
     <div class="card pad" style="grid-column:1/-1;display:flex;flex-direction:column;gap:10px">
       <div class="eyebrow">시험까지 ${Math.max(0,Math.ceil((Date.parse(EXAM_DATE+'T00:00:00+09:00')-Date.parse(today()+'T00:00:00+09:00'))/864e5))}일 · ${GRADEN[S.myGrade]} 모의고사</div>
